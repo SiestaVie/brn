@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.security.authentication.BadCredentialsException
+import org.springframework.validation.FieldError
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 
@@ -48,6 +50,7 @@ class ExceptionControllerAdvice {
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgumentException(e: IllegalArgumentException): ResponseEntity<BaseResponseDto> {
         logger.warn("IllegalArgumentException: ${e.message}", e)
+
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .contentType(MediaType.APPLICATION_JSON)
@@ -68,6 +71,16 @@ class ExceptionControllerAdvice {
         return createInternalErrorResponse(e)
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleMethodArgumentNotValidException(e: MethodArgumentNotValidException): ResponseEntity<BaseResponseDto> {
+        logger.warn("Argument Validation Error: ${e.message}", e)
+
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(BaseResponseDto(errors = processValidationErrors(e.bindingResult.fieldErrors)))
+    }
+
     @ExceptionHandler(IOException::class)
     fun handleIOException(e: IOException): ResponseEntity<BaseResponseDto> {
         return createInternalErrorResponse(e)
@@ -81,8 +94,12 @@ class ExceptionControllerAdvice {
     fun createInternalErrorResponse(e: Throwable): ResponseEntity<BaseResponseDto> {
         logger.error("Internal exception: ${e.message}", e)
         return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(BaseResponseDto(errors = listOf(e.message.toString())))
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(BaseResponseDto(errors = listOf(e.message.toString())))
+    }
+
+    private fun processValidationErrors(fieldErrors: List<FieldError>): List<String> {
+        return fieldErrors.map { fieldError -> fieldError.defaultMessage ?: "Field error" }.toList()
     }
 }
